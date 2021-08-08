@@ -17,7 +17,7 @@ sudo apt install docker.io
 
 ## Rabbit server setup
 ```shell
-docker run -d --hostname my-rabbit --name some-rabbit -p 8080:15672 rabbitmq:3-management
+make run-docker
 ```
 This command runs the Rabbit server management plugin, and enables managment interface on port 8080. You can then go to http://localhost:8080 with the default username and password of  ```guest/guest```.
 
