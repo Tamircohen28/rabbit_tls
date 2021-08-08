@@ -13,26 +13,25 @@ use native_tls::{Certificate, TlsConnector};
 use std::fs;
 use std::net::TcpStream;
 use std::time::Duration;
+use native_tls::TlsConnector;
 
 struct Rabbit {
     host: String,
     port: usize,
     username: String,
     password: String,
-    vhost: String,
     secure: bool,
     cafile: String,
 }
 
 impl Rabbit {
-    fn get_string(&self) -> String {
-        format!("{protocol}://{username}:{password}@{host}:{port}/{vhost}",
+    fn get_url(&self) -> String {
+        format!("{protocol}://{username}:{password}@{host}:{port}",
             protocol=if self.secure {"amqps"} else {"amqp"},
             username=self.username,
             password=self.password,                                                                                                                                                   
             host=self.host,                                                                                                                                                           
-            port=self.port,                                                                                                                                                           
-            vhost=self.vhost,                                                                                                                                                         
+            port=self.port,                                                                                                                                                                                                                                                                                                  
         ) 
     }
 
@@ -55,10 +54,18 @@ impl Rabbit {
 fn main() {
     SimpleLogger::new().with_level(LevelFilter::Debug).init().unwrap();
     
-    //let connector = TlsConnector::builder().add_root_certificate(cert)
+    let rabbit = Rabbit {
+        host: "localhost".to_owned(),
+        port: 5671,
+        username: "guest".to_owned(),
+        password: "guest".to_owned(),
+        secure: true,
+        cafile: r"C:\Users\Tamir Cohen\Desktop\rabbit_tls\certificate\client_certificate.pem".to_owned(),
+    };
+    let connector = TlsConnector::builder().add_root_certificate(rabbit.get_cert()).build().unwrap();
 
     // Open connection.
-    let mut connection = Connection::open("amqps://guest:guest@localhost:5671").expect("Connection failed");
+    let mut connection = Connection::open_tls_stream(connector, &rabbit.host, rabbit.get_stream(), ConnectionOptions::default(), ConnectionTuning::default()).expect("Connection failed");
 
     // Open a channel - None says let the library choose the channel ID.
     let channel = connection.open_channel(None).expect("Opening channel failed");
