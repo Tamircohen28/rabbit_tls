@@ -1,4 +1,7 @@
-use amiquip::{Auth, Connection, ConnectionOptions, ConnectionTuning, Exchange, Publish};
+use amiquip::{
+    Auth, Connection, ConnectionOptions, ConnectionTuning, ExchangeDeclareOptions, ExchangeType,
+    FieldTable, Publish, QueueDeclareOptions,
+};
 use log::{info, LevelFilter};
 use mio::net::TcpStream;
 use native_tls::{Certificate, Identity, TlsConnector};
@@ -6,11 +9,10 @@ use simple_logger::SimpleLogger;
 use std::{fs, path::Path};
 
 // certificate 'Common Name' was set on cration, do not touch this!
-const C_CA_CN: &str = "DESKTOP-G7H3D49";
+const C_CA_CN: &str = "rabbit_tls_srv";
 const C_RABBIT_IP: &str = "127.0.0.1";
 const C_RABBIT_PORT: u16 = 5671;
-const C_CLIENT_CERT: &str = r"certificate\client_certificate.pem";
-const C_CLIENT_P12: &str = r"certificate\client_key.p12";
+const C_CERT_DIR: &str = r"certificate";
 
 // Rabbit configuration struct
 #[derive(Debug)]
@@ -54,7 +56,6 @@ impl<P: AsRef<Path>> Rabbit<P> {
     fn get_connector(&self) -> TlsConnector {
         let cert_byte_vec = fs::read(&self.client_cert).expect("failed to load cert");
         let cert = Certificate::from_pem(&cert_byte_vec).expect("failed to parse cert");
-
         let identity_byte_vec = fs::read(&self.client_p12).expect("failed to load client_p12");
         let identity =
             Identity::from_pkcs12(&identity_byte_vec, "").expect("failed to parse client_p12");
@@ -72,19 +73,14 @@ impl<P: AsRef<Path>> Rabbit<P> {
     }
 }
 
-fn main() {
-    SimpleLogger::new()
-        .with_level(LevelFilter::Info)
-        .init()
-        .unwrap();
-
+fn client_demo(index: usize) {
     let rabbit = Rabbit::new(
         "guest",
         "guest",
         C_RABBIT_IP,
         C_RABBIT_PORT,
-        C_CLIENT_CERT,
-        C_CLIENT_P12,
+        Path::new(C_CERT_DIR).join(format!("client_{}_certificate.pem", index)),
+        Path::new(C_CERT_DIR).join(format!("client_{}_key.p12", index)),
     );
 
     // client-side TLS connection
@@ -109,13 +105,41 @@ fn main() {
         .expect("Opening channel failed");
 
     // Get a handle to the direct exchange on our channel.
-    let exchange = Exchange::direct(&channel);
+    let exchange = channel
+        .exchange_declare(
+            ExchangeType::Direct,
+            "tls_exchange".to_owned(),
+            ExchangeDeclareOptions::default(),
+        )
+        .expect("Failed declaring exchange");
 
-    // Publish a message to the "hello" queue.
-    exchange
-        .publish(Publish::new(b"hello there", "hello"))
-        .expect("Publish had failed");
+    channel
+        .queue_declare("tls_queue", QueueDeclareOptions::default())
+        .expect("Failed declaring queue");
 
-    info!("message publish successful");
-    connection.close().expect("Failed closing connection");
+    channel
+        .queue_bind("tls_queue", "tls_exchange", "hello", FieldTable::default())
+        .expect("Failed binding queue to exchange");
+
+    // publish 10 messages
+    for _ in 0..10 {
+        exchange
+            .publish(Publish::new(
+                format!("hello there from client {}", index).as_bytes(),
+                "hello",
+            ))
+            .expect("Publish had failed");
+    }
+    info!("All messages sent seccessfuly");
+}
+
+fn main() {
+    SimpleLogger::new()
+        .with_level(LevelFilter::Info)
+        .init()
+        .unwrap();
+
+    client_demo(1);
+    client_demo(2);
+    client_demo(3);
 }

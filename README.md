@@ -41,13 +41,22 @@ You can then go to http://localhost:8080 with the default username and password 
 For more capabilities see [rabbitmq on dockerhub](https://hub.docker.com/_/rabbitmq)
 
 ## Using tls-gen's Basic Profile
-Below is an example that generates a CA and uses it to produce two certificate/key pairs, one for the server and another for clients. This is the setup for the certificate directory.  
+Below is an example that generates a CA and uses it to produce certificate/key pair, one for the server and another for clients. This is the setup for the certificate directory.  
 **Do not** genarate certificate with password, the client can't read them.
 ```shell
 git clone https://github.com/michaelklishin/tls-gen tls-gen
 cd tls-gen/basic
 make PYTHON=python
 ```
+
+tls-gen doesn't support generating more clients, someome open a branch with a patch to do so
+```shell
+git clone --branch lrb-gen-client-cert-only https://github.com/michaelklishin/tls-gen tls-gen
+cd tls-gen/basic
+make PYTHON=python CN=rabbit_tls_srv
+make gen-client PYTHON=python CN={client index}
+```
+
 
 ## Use OpenSSL Tools to Test TLS Connection
 ```shell
